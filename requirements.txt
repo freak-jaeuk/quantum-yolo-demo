@@ -1,0 +1,12 @@
+# Quantum-YOLO demo — exact versions this demo was built & tested with.
+# CPU-only laptops: `pip install -r requirements.txt` pulls the CPU wheels
+# automatically (no CUDA needed). GPU is optional.
+
+ultralytics==8.4.60
+gradio==5.33.2
+onnxruntime==1.26.0
+onnx==1.21.0
+opencv-python-headless==4.13.0.92
+numpy==2.1.2
+imageio-ffmpeg==0.6.0
+torch==2.7.0
