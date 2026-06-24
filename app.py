@@ -14,6 +14,7 @@ Tabs:
   - 비교     : run all three forms (INT8 / fp32-ONNX / PyTorch-VQC) on ONE image
   - 영상     : run on an uploaded video (CCTV-style)
   - 실시간   : live webcam stream detection (real-time, runs in the browser)
+  - 라이브   : RTSP / IP-camera / HTTP stream URL -> live server-side detection
 
 GPU is optional. To enable it on a Linux box with the real driver libs:
   LD_LIBRARY_PATH=/usr/lib64 python app.py
@@ -191,6 +192,57 @@ def detect_stream(frame, model_name, conf):
     return out, f"실시간 탐지 {n}개 · {dt:.0f} ms ({1000/dt:.1f} FPS, {devlabel})"
 
 
+def stream_source(url, model_name, conf, device_choice, max_seconds):
+    """Open an RTSP / IP-camera / HTTP video stream URL and yield annotated frames
+    live. Bounded by max_seconds; the Stop button cancels the generator (cv2 is
+    released in finally). cv2.VideoCapture also accepts a local file path, so the
+    same code path works for any source."""
+    url = (url or "").strip()
+    if not url:
+        yield None, "RTSP/HTTP 스트림 URL을 입력하세요. 예) rtsp://id:pw@192.168.0.10:554/stream1"
+        return
+    # RTSP over TCP is more reliable than default UDP; stimeout (5s, in microsec)
+    # caps the hang on an unreachable URL instead of ffmpeg's ~30s default.
+    if url.lower().startswith("rtsp"):
+        os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS",
+                              "rtsp_transport;tcp|stimeout;5000000")
+    m = get_model(model_name)
+    dev = _resolve_device(model_name, device_choice)
+    cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
+    try:
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)   # keep only latest frame -> low lag
+    except Exception:
+        pass
+    if not cap.isOpened():
+        cap.release()
+        yield None, (f"스트림을 열 수 없습니다: {url}\n"
+                     "URL/계정/네트워크/방화벽 확인. (카메라는 실행 머신과 같은 네트워크에서 접근 가능해야 함)")
+        return
+    t_start = time.time()
+    n, total, last = 0, 0, t_start
+    devlabel = "GPU" if dev == 0 else "CPU"
+    try:
+        while time.time() - t_start < max_seconds:
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                yield None, "프레임 수신 실패 — 스트림이 끊겼거나 종료되었습니다."
+                break
+            res = m.predict(frame, conf=conf, device=dev, half=False, verbose=False)[0]
+            nd = len(res.boxes) if res.boxes is not None else 0
+            n += 1
+            total += nd
+            now = time.time()
+            fps = 1.0 / max(now - last, 1e-6)
+            last = now
+            out = cv2.cvtColor(res.plot(), cv2.COLOR_BGR2RGB)
+            yield out, (f"프레임 {n} · 탐지 {nd}개 · {fps:.1f} FPS ({devlabel}) · "
+                        f"평균 {total/max(n,1):.1f} 객체/프레임 · 경과 {now-t_start:.0f}s")
+        else:
+            yield None, f"최대 실행 시간({max_seconds}s) 도달 — 종료."
+    finally:
+        cap.release()
+
+
 def _sample_images():
     return sorted(str(p) for p in SAMPLE_IMG_DIR.glob("*.jpg"))
 
@@ -273,6 +325,30 @@ with gr.Blocks(title="Quantum-YOLO Demo") as demo:
         cam_info = gr.Textbox(label="실시간 FPS", lines=1)
         cam_in.stream(detect_stream, [cam_in, wmodel, conf], [cam_out, cam_info],
                       stream_every=0.1, concurrency_limit=1)
+
+    with gr.Tab("라이브 스트림 (RTSP/IP카메라)"):
+        gr.Markdown(
+            "**RTSP / IP카메라 / HTTP 영상 스트림 URL**을 입력하면 (앱이 도는 머신이) 받아서 실시간 탐지합니다.\n"
+            "- 예) `rtsp://id:pw@192.168.0.10:554/stream1`  ·  `http://192.168.0.10:8080/video`\n"
+            "- 카메라는 **앱이 실행 중인 머신과 같은 네트워크**에서 접근 가능해야 합니다\n"
+            "- 가벼운 INT8/fp32 권장 · 최대 실행 시간 경과 또는 **[중지]** 로 종료")
+        rtsp_url = gr.Textbox(
+            label="스트림 URL",
+            placeholder="rtsp://id:pw@192.168.0.10:554/stream1   또는   http://192.168.0.10:8080/video")
+        with gr.Row():
+            rmodel = gr.Dropdown(list(CKPTS.keys()),
+                                 value="INT8 (배포형, 3.6MB)", label="모델")
+            rdev = gr.Dropdown(DEV_CHOICES, value="CPU", label="장치")
+        rsec = gr.Slider(5, 300, value=30, step=5, label="최대 실행 시간(초)")
+        rtsp_out = gr.Image(label="실시간 탐지 결과")
+        rtsp_info = gr.Textbox(label="상태 / FPS", lines=2)
+        with gr.Row():
+            rtsp_start = gr.Button("스트림 시작", variant="primary")
+            rtsp_stop = gr.Button("중지")
+        _rtsp_ev = rtsp_start.click(
+            stream_source, [rtsp_url, rmodel, conf, rdev, rsec],
+            [rtsp_out, rtsp_info])
+        rtsp_stop.click(lambda: "중지됨.", None, rtsp_info, cancels=[_rtsp_ev])
 
 if __name__ == "__main__":
     port = int(os.environ.get("QYOLO_PORT", "7861"))
