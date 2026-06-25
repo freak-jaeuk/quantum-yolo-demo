@@ -254,18 +254,17 @@ def _sample_videos():
 
 DEV_CHOICES = ["CPU"] + (["GPU"] if GPU_OK else [])
 
-with gr.Blocks(title="Quantum-YOLO Demo") as demo:
+with gr.Blocks(title="Edge CCTV Detection Demo") as demo:
     gr.Markdown(
-        "# 🔬 Quantum-YOLO 엣지 탐지 데모\n"
-        "YOLO26 어텐션을 **변분 양자 회로(VQC)** 로 학습 → 회로를 **고전 연산으로 컴파일**(무손실) "
-        "→ **ONNX / INT8** export → *실제 배포 아티팩트*를 구동합니다.\n\n"
-        "**파이프라인:** 양자 학습 → 고전 컴파일(0 추론오버헤드) → INT8(3.6MB) → 엣지 배포  \n"
-        "- 양자 회로는 유니터리 검증 + **실제 IBM 양자컴퓨터(ibm_fez)에서 실행 검증** (cosine 0.978)\n"
-        "- 세 배포 형태는 **사실상 동일한 탐지**(컴파일=무손실, INT8≈fp32)이며 크기·속도만 다름\n"
-        "- **실시간 가능**: GPU 189 FPS · CPU(fp32) 63 FPS · CPU(INT8) 21 FPS (Xeon 기준) — 모두 영상 프레임레이트 초과\n"
-        "- 정직성: 이 CPU에선 INT8 이득은 **속도가 아닌 크기**(9.98→3.58MB). 속도 이득은 OpenVINO/VNNI/NPU에서 발현\n"
+        "# 🛰️ 엣지 CCTV 객체탐지 데모\n"
+        "**YOLO26n · 풀COCO(80클래스) · INT8 3.6MB** — 서버 GPU 없이 **CPU에서 실시간**으로 구동해 "
+        "**서버 재원(GPU) 의존도를 낮추는** 엣지 객체탐지기입니다.\n\n"
+        "- **실시간**: GPU 189 FPS · CPU(fp32) 63 FPS · CPU(INT8) 21 FPS (Xeon 기준) — 모두 영상 프레임레이트 초과\n"
+        "- 세 배포 형태(INT8 / fp32 / VQC)는 **사실상 동일한 탐지**, 크기·속도만 다름\n"
+        "- 정직성: 이 CPU에선 INT8 이득은 **속도가 아닌 크기**(9.98→3.58MB); 속도 이득은 OpenVINO/VNNI/NPU에서 발현\n"
+        "- ✅ **풀COCO(118k, 80클래스) 학습** — full-val mAP50-95 0.364 (fp32) / 0.359 (INT8)\n"
         f"- {'🟢 GPU 사용 가능' if GPU_OK else '⚪ CPU 전용 (노트북 CPU에서도 동작 — 속도는 사양에 따라 다름)'}\n"
-        "- ✅ **풀COCO(118k, 80클래스) 학습 모델** — full-val mAP50-95 0.364 (fp32) / 0.359 (INT8)"
+        "- *(연구 레이어) 어텐션을 변분 양자회로(VQC)로 학습 후 **고전 연산으로 무손실 컴파일** + 실제 IBM QPU 검증(cos 0.978) — 정확도는 고전과 **패리티**(양자 우위 아님)*"
     )
     conf = gr.Slider(0.05, 0.9, value=0.25, step=0.05, label="confidence 임계값")
 
