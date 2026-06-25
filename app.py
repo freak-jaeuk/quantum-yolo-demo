@@ -21,6 +21,7 @@ GPU is optional. To enable it on a Linux box with the real driver libs:
 """
 
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -62,6 +63,7 @@ def _gpu_ok():
 
 
 GPU_OK = _gpu_ok()
+FFPROBE_OK = shutil.which("ffprobe") is not None  # gradio video-sample preview needs ffprobe
 
 
 def get_model(name):
@@ -307,8 +309,10 @@ with gr.Blocks(title="Edge CCTV Detection Demo") as demo:
         vid_info = gr.Textbox(label="정보", lines=4)
         gr.Button("영상 탐지 실행", variant="primary").click(
             detect_video, [vid_in, vmodel, conf, max_sec, dev_vid], [vid_out, vid_info])
-        if _sample_videos():
+        if _sample_videos() and FFPROBE_OK:
             gr.Examples(_sample_videos(), vid_in, label="샘플 영상 (교통 CCTV)")
+        elif _sample_videos():
+            gr.Markdown("_(샘플 영상 미리보기는 ffprobe 미설치로 생략 — 영상 직접 업로드는 정상 동작)_")
 
     with gr.Tab("실시간 (웹캠)"):
         gr.Markdown(
