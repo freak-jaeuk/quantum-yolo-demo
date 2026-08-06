@@ -1,10 +1,44 @@
+# ---------------------------------------------------------------------------
+# DEFAULT-DENY whitelist.
+#
+# This repository is PUBLIC and the research tree was merged into it while a
+# patent application on the compile->INT8->edge pipeline is being prepared.
+# A stray `git add -A` must therefore not be able to publish anything new.
+# Everything is ignored unless explicitly re-included below, and the allowed
+# list is exactly the files that were already public before the merge.
+#
+# To publish something new, add an explicit `!` line for it — deliberately.
+# ---------------------------------------------------------------------------
+/*
+
+!/.gitignore
+!/README.md
+!/requirements.txt
+!/app.py
+
+!/models/
+models/*
+!models/__init__.py
+!models/quantum_layers.py
+!models/vqc_deploy.py
+
+!/yolo26q/
+yolo26q/*
+!yolo26q/__init__.py
+!yolo26q/bottleneck_vqc.py
+!yolo26q/register.py
+
+!/weights/
+weights/*
+!weights/best.onnx
+!weights/best.pt
+!weights/best_int8_pctA.onnx
+
+!/samples/
+samples/**/__pycache__/
+
+# never, under any circumstance
 __pycache__/
 *.pyc
-*.pyo
-outputs/
-.venv/
-venv/
-env/
 *.log
-.DS_Store
-.ipynb_checkpoints/
+.venv/
